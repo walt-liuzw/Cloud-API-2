@@ -15,4 +15,5 @@
 %rename(has_camera_index) flight_hub_sdk::LiveSyncUpdateParams::set_camera_index;
 %rename(has_video_type) flight_hub_sdk::LiveSyncUpdateParams::set_video_type;
 %rename(has_video_quality) flight_hub_sdk::LiveSyncUpdateParams::set_video_quality;
+%include "callback_ownership.i"
 %include "../../java/swig/flight_hub_sdk.i"

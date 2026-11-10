@@ -22,7 +22,7 @@ GCC/Clang、Python 3、patchelf、binutils，以及原有 Java native 构建所�
 - `flight_hub_sdk.dll`：单独的托管程序集；单独复制此文件不足以运行。
 - `api-parity.json`：Java/C# 生成类型和业务桥接入口覆盖报告。
 
-构建脚本会检查 ELF 架构、动态依赖，随后从实际 NuGet 包还原 smoke 工程，验证
+构建脚本会检查 ELF 架构、动态依赖和回调所有权，并从实际 NuGet 包还原 smoke 工程，验证
 原生版本调用、UTF-8 字符串、64 位数值及 C++ → C# director 回调。smoke 不连接业务环境。
 测试使用全新的包缓存，`flight_hub_sdk` 固定从本次本地产物还原；若机器缺少
 .NET targeting packs，只允许对应 Microsoft 框架包从官方 NuGet 源下载。
@@ -33,7 +33,7 @@ GCC/Clang、Python 3、patchelf、binutils，以及原有 Java native 构建所�
 ## 业务项目引用
 
 ```bash
-dotnet add package flight_hub_sdk --version 3.4.0 --source /path/to/sdk/build/csharp/dist
+dotnet add package flight_hub_sdk --version 3.4.1 --source /path/to/sdk/build/csharp/dist
 ```
 
 ```csharp
@@ -82,9 +82,9 @@ Java 原有构建行为保留。原生实现与 Java 完全共用。
 ## 回调和资源生命周期
 
 继承生成的 `…Callback`，override 对应 `on…` 方法，再传给对应 `…Java` 桥接方法。
-服务必须强引用回调对象，直到一次性请求完成或订阅取消且在途回调结束；
-不可在发起异步调用后立即 `Dispose`，也不可只依赖局部变量的词法作用域。
-订阅回调建议存储为服务字段，记录 listenId，停止时调用对应 cancel 方法。
+每次请求或注册使用一个新的回调实例。桥接方法接收回调时交接原生对象的删除权，
+后续释放托管代理不会提前销毁原生回调。原生层在仍可能调用回调时保留托管委托，
+最后一份原生引用销毁时释放委托。订阅方应记录 listenId，停止时调用对应 cancel 方法。
 
 回调在原生线程执行，必须在 override 内捕获异常，不能让异常跨越原生边界。
 回调参数可能是原生临时对象的借用代理；需要异步使用时，在回调返回前复制到自己的

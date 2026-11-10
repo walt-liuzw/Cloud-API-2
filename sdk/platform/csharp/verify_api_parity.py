@@ -16,8 +16,8 @@ def verify(java_dir, csharp_dir):
         raise RuntimeError('Expected freshly generated Java JNI and one C# PInvoke class')
     java = java_file.read_text(encoding='utf-8')
     csharp = csharp_files[0].read_text(encoding='utf-8')
-    java_methods = set(re.findall(r'\bnative\s+[\w.\[\]]+\s+(\w+)\(', java))
-    csharp_methods = set(re.findall(r'\bextern\s+[\w.:\[\]]+\s+(\w+)\(', csharp))
+    java_methods = dict(re.findall(r'\bnative\s+[\w.\[\]]+\s+(\w+)\(([^\n]*)\);', java))
+    csharp_methods = dict(re.findall(r'\bextern\s+[\w.:\[\]]+\s+(\w+)\(([^\n]*)\);', csharp))
     classes = {p.stem for p in java_dir.glob('*.java')
                if not p.stem.startswith('SWIGTYPE_')
                and p.stem not in {'flighthubsdkmoduleJNI', 'flighthubsdkmodule'}}
@@ -26,11 +26,19 @@ def verify(java_dir, csharp_dir):
     expected = {m for m in java_methods
                 if (re.match(r'(?:I[A-Z]\w*|FlightHubSdk)_', m) or 'Callback_on' in m)
                 and not m.endswith(('_change_ownership', '_director_connect'))}
-    missing_methods = sorted(expected - csharp_methods)
+    missing_methods = sorted(expected - csharp_methods.keys())
+    callback_bridges = {
+        name for name in expected
+        if re.search(r'\b\w*Callback\w*\s+jarg\d+_\b', java_methods[name])
+        and re.match(r'I[A-Z]\w*_.*(?:Wrapper|Java)(?:__SWIG_\d+)?$', name)
+    }
+    unmanaged_callbacks = sorted(name for name in callback_bridges
+                                 if 'CallbackTransfer.Argument ' not in csharp_methods.get(name, ''))
     if not expected or len(classes) < 100:
         raise RuntimeError('Reference is incomplete; refusing an empty parity check')
     return dict(java_classes=len(classes), checked_business_bridges=len(expected),
                 missing_classes=missing_classes, missing_methods=missing_methods,
+                checked_callback_transfers=len(callback_bridges), unmanaged_callbacks=unmanaged_callbacks,
                 scope='Generated class and business bridge names; live behavior needs integration tests')
 
 
@@ -40,4 +48,4 @@ if __name__ == '__main__':
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(result, ensure_ascii=False))
-    sys.exit(bool(result['missing_classes'] or result['missing_methods']))
+    sys.exit(bool(result['missing_classes'] or result['missing_methods'] or result['unmanaged_callbacks']))

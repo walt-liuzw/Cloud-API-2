@@ -5,6 +5,7 @@
     <SdkVersion Condition="'$(SdkVersion)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../../../VERSION').Trim())</SdkVersion>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="ownership/**/*.cs" />
     <PackageReference Include="flight_hub_sdk" Version="$(SdkVersion)" />
   </ItemGroup>
 </Project>
